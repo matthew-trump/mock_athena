@@ -1,0 +1,201 @@
+{% load static %}
+<html>
+  <head>
+    <title>Mock Athena v1</title>
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <style>
+      div.scroll {
+        height: 350px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding: 20px;
+      }
+      .error{
+        color: red
+      }
+      #params{
+        display: flex;
+      }
+      #request{
+        font-family:monospace; 
+        white-space: pre;
+      }
+      #response{
+        font-family:monospace; 
+        white-space: pre;
+      }
+    </style>
+  </head>
+  <body>
+    {% csrf_token %}
+    <h1>Mock Athena v1</h1>
+
+    <div style="display: flex">
+        <div id="patterns" class="scroll"></div>
+        
+        <div id="main">
+          <h2 id="name">Select endpoint from menu</h2>
+          <form id="api_request">
+            <div id="method"></div>
+            <div id="pattern"></div>
+            <div id="params">
+              <div id="param_practice_id">
+                <label for="practice_id"> practice id</label>
+                <input type="text" id="practice_id" class="url_parameter">
+              </div>
+              <div id="param_patient_id">
+                <label for="patient_id"> patient id</label>
+                <input type="text" id="patient_id" class="url_parameter">
+              </div>
+              <div id="param_appointment_id">
+                <label for="appointment_id">appointment id</label>
+                <input type="text" id="appointment_id" class="url_parameter">
+              </div>
+              <div id="param_encounter_id">
+                <label for="encounter_id">encounter id</label>
+                <input type="text" id="encounter_id" class="url_parameter">
+              </div>
+              <div id="param_insurance_id">
+                <label for="insurance_id">insurance id</label>
+                <input type="text" id="insurance_id" class="url_parameter">
+              </div>
+              <div id="param_vital_id">
+                <label for="vital_id">vital id</label>
+                <input type="text" id="vital_id" class="url_parameter">
+              </div>
+            </div>
+            <textarea id="body"></textarea>
+            <input type="button" id="submit_api_request" value="submit">
+          
+        </form>
+        <div id="request"></div>
+        <div id="response"></div>
+        </div>
+    </div>
+
+
+  </body>
+  <script>
+    show_all_methods = true
+    placeholders = ['practice_id','patient_id','encounter_id','appointment_id','insurance_id','vital_id']
+      
+      
+    all_methods = ['GET','POST','PUT','PATCH','DELETE']
+    patterns = []
+    last_method_selected = {}
+
+   
+  
+    function show_hide_fields(url){
+        $('.url_parameter').each((i,el)=>{
+            const id = el.id;
+            if(url.includes(`${id}`)){
+              $(`#param_${id}`).show()
+            }else{
+              $(`#param_${id}`).hide()
+            }
+        })
+    }
+    function  show_hide_body(method){
+        console.log(method);
+        if(['GET','DELETE'].includes(method)){
+            $('#body').hide()
+        }else{
+            $('#body').show()
+        }
+    }
+    function show_pattern(pattern_name){
+
+        selected_method = last_method_selected[pattern_name] || 'GET'
+        const pattern = patterns.find(p=>p.name==pattern_name)
+        const url     = convert_url(pattern.pattern)
+        console.log(url)
+        const methods_shown =  show_all_methods ? all_methods : pattern.methods
+
+        $("#name").text(pattern.name)
+        $("#pattern").text(url)
+        $('#method').html(methods_shown.map(m=>`
+         <label for="method_${m}">${m}
+            <input type="radio" value="${m}" id="method_${m}" name="method" ${m==selected_method?"checked":""} onclick="set_last_selected_method();">
+          </label>`).join('&nbsp|&nbsp'))
+        $("#params").show()
+        $("#request").text(``)
+        $("#response").text(``)
+        selected_method = get_selected_method()
+        set_last_selected_method( selected_method)
+        
+        show_hide_fields(url);
+    }
+    
+     function set_last_selected_method(value){
+      const key = $('#name').text()
+      last_method_selected[key] = value;
+      show_hide_body(value)
+    }
+    function convert_url(pattern){
+      let _new_pattern = pattern
+        placeholders = ['practice_id','patient_id','encounter_id','appointment_id','insurance_id','vital_id']
+        placeholders.forEach(p=>{
+          replace = `<int:${p}>`
+          _new_pattern = _new_pattern.replace(replace,`{${p}}`)
+          
+        })
+        return _new_pattern
+    }
+
+    function load_patterns(event) {
+        $.ajax({
+          url: "/v1/patterns",
+          type: "GET",
+          success: function (response) {
+            patterns = response.patterns;
+            console.log(patterns)
+            patternsEl = $('#patterns')
+            response.patterns.forEach(pattern=>{
+              if(['index','patterns'].includes(pattern.name)) return;
+              patternsEl.append($(`<div><a href="#" onclick="show_pattern('${pattern.name}')">${pattern.name}</a></div>`))  
+            });
+          },
+          error: function (xhr, textStatus, error) {
+            console.log(xhr.statusText);
+          },
+        });
+      }
+      function get_selected_method(){
+        return document.querySelector('input[name="method"]:checked').value
+      }
+      function submit_api_request(){
+        const method = get_selected_method()
+        let url = $("#pattern").text();
+        placeholders.forEach(p=>{
+          url = url.replace(`{${p}}`,$(`#${p}`).val())
+        })
+        url = `/v1/${url}`
+
+        $("#request").text(`${method} ${url}`)
+        $("#response").text(``)
+        $("#response").removeClass('error')
+
+        $.ajax({
+          url: `${url}`,
+          type: method,
+          success: function (response) {
+            console.log(response)
+            $("#response").text(JSON.stringify(response,null,2))
+          },
+          error: function (xhr, textStatus, error) {
+            $("#response").addClass('error')
+            $("#response").text(xhr.statusText)
+            console.log(xhr.statusText);
+          },
+        });
+    }
+    $(document).ready(function () {
+      $("#params").hide()
+      load_patterns()
+      show_hide_fields('')
+      show_hide_body('GET')
+      $('#submit_api_request').click(()=>submit_api_request())
+    });
+  </script>
+</html>
