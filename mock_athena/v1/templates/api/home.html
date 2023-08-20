@@ -97,7 +97,7 @@
         })
     }
     function  show_hide_body(method){
-        console.log(method);
+        console.log("method="+method);
         if(['GET','DELETE'].includes(method)){
             $('#body').hide()
         }else{
@@ -116,7 +116,7 @@
         $("#pattern").text(url)
         $('#method').html(methods_shown.map(m=>`
          <label for="method_${m}">${m}
-            <input type="radio" value="${m}" id="method_${m}" name="method" ${m==selected_method?"checked":""} onclick="set_last_selected_method();">
+            <input type="radio" value="${m}" id="method_${m}" name="method" ${m==selected_method?"checked":""} onclick="set_last_selected_method(get_selected_method());">
           </label>`).join('&nbsp|&nbsp'))
         $("#params").show()
         $("#request").text(``)
@@ -166,6 +166,7 @@
       }
       function submit_api_request(){
         const method = get_selected_method()
+        console.log("method1="+method)
         let url = $("#pattern").text();
         placeholders.forEach(p=>{
           url = url.replace(`{${p}}`,$(`#${p}`).val())
